@@ -3,9 +3,9 @@
 ## Unreleased
 
 ### Fixed
-- When a sign-in proxy such as Cloudflare Access expires its session, opening Hatchdoor reaches the proxy so it can sign you in again. An open tab can reload once to reach sign-in, and shows a sign-in message if the refusal persists. Hatchdoor still asks for its own web token when it needs one and can open its installed shell offline. [#<issue>]
+- When a sign-in proxy such as Cloudflare Access expires its session, opening Hatchdoor reaches the proxy so it can sign you in again. An open tab can reload once to reach sign-in, and shows a sign-in message if the refusal persists. Hatchdoor still asks for its own web token when it needs one and can open its installed shell offline. [#812]
 
-[#<issue>]: https://github.com/BatterWorks/Hatchdoor/issues
+[#812]: https://github.com/BatterWorks/Hatchdoor/issues/812
 
 ## v2.10.1 - 2026-11-25
 
