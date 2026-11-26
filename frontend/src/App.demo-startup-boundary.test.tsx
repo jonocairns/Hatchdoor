@@ -10,7 +10,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App as RootApp, VaultApp as App } from "./App";
-import { clearToken } from "./api/api";
+import { clearToken, reserveProxyReload } from "./api/api";
 import type { StartupStatus } from "./startup/useStartupStatus";
 import { discoveryResponse, healthyVault } from "./test/fixtures/vaults";
 
@@ -62,6 +62,7 @@ type Server = {
    * deployment with `HATCHDOOR_WEB_BEARER_TOKEN` does. Startup status stays
    * public there too. */
   requiredToken?: string;
+  proxyRefuses?: boolean;
 };
 
 /** One Vault holding one note, `home`. `server` is live: flip its fields to
@@ -87,9 +88,15 @@ function mockServer(overrides: Partial<Server> = {}): Server {
         new Headers(init?.headers).get("Authorization") !==
           `Bearer ${server.requiredToken}`
       ) {
-        return jsonResponse({ error: "unauthorized" }, 401);
+        return new Response(null, {
+          status: 401,
+          headers: { "X-Hatchdoor-Auth": "required" },
+        });
       }
       if (url.endsWith("/api/v1/vaults")) {
+        if (server.proxyRefuses) {
+          return new Response(null, { status: 401 });
+        }
         return jsonResponse(discoveryResponse([VAULT], server.demo));
       }
       if (url.endsWith("/api/startup-status")) {
@@ -315,6 +322,29 @@ describe("boot with site data blocked (#339)", () => {
       if (descriptor) {
         Object.defineProperty(window, "localStorage", descriptor);
       }
+    }
+  });
+});
+
+describe("proxy sign-in", () => {
+  it("shows the proxy refusal instead of the token prompt after an attempted reload", async () => {
+    mockServer({ proxyRefuses: true });
+    expect(reserveProxyReload()).toBe(true);
+    try {
+      render(
+        <MemoryRouter>
+          <RootApp />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByText(/sign-in proxy .* rejected the request/),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("dialog", { name: "Access token required" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      window.sessionStorage.clear();
     }
   });
 });

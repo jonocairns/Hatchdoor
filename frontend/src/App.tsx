@@ -49,7 +49,14 @@ import {
 } from "./lib/storage";
 import { useIsMobile } from "./hooks/useIsMobile";
 import { useTheme } from "./hooks/useTheme";
-import { onUnauthorized, setToken, withAccessToken } from "./api/api";
+import {
+  type AuthRefusal,
+  onUnauthorized,
+  reserveProxyReload,
+  setToken,
+  withAccessToken,
+} from "./api/api";
+import { isAppReloadHeld } from "./lib/reloadGuard";
 import { copyText } from "./lib/clipboard";
 import { NoteActionsDialog } from "./components/NoteActionsDialog";
 import { NotePage } from "./components/NotePage";
@@ -58,7 +65,7 @@ import { GraphPage } from "./components/graph/GraphPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { useLayoutSettings } from "./features/settings";
 import { StatsPage } from "./components/StatsPage";
-import { StateBlock } from "./components/ui";
+import { StateBlock, UiButton } from "./components/ui";
 import { useNoteActions } from "./hooks/useNoteActions";
 import { useVaultTree } from "./hooks/useVaultTree";
 import { resolvePrimaryVaultId, useVaultScope } from "./hooks/useVaultScope";
@@ -1328,7 +1335,8 @@ export function App() {
 
 function AppSession({ onUnlockInPlace }: { onUnlockInPlace: () => void }) {
   const navigate = useNavigate();
-  const [authRequired, setAuthRequired] = useState(false);
+  const [authRefusal, setAuthRefusal] = useState<AuthRefusal | null>(null);
+  const authRequired = authRefusal === "hatchdoor";
   const collection = useVaultCollection();
   const hasRegistryRecovery = Boolean(collection.recovery);
   // Only a discovery that answered can say there are no Vaults; a failed one
@@ -1346,7 +1354,23 @@ function AppSession({ onUnlockInPlace }: { onUnlockInPlace: () => void }) {
   );
 
   useEffect(() => {
-    onUnauthorized(() => setAuthRequired(true));
+    let proxyRecovery: "reloading" | "notice" | null = null;
+    onUnauthorized((source) => {
+      if (proxyRecovery === "reloading") {
+        return;
+      }
+      // Concurrent refusals share the same recovery attempt. If the proxy
+      // later admits a request, a Hatchdoor 401 still opens the token prompt.
+      if (source === "proxy" && proxyRecovery === null) {
+        if (!isAppReloadHeld() && reserveProxyReload()) {
+          proxyRecovery = "reloading";
+          window.location.reload();
+          return;
+        }
+        proxyRecovery = "notice";
+      }
+      setAuthRefusal(source);
+    });
     return () => onUnauthorized(null);
   }, []);
 
@@ -1366,7 +1390,7 @@ function AppSession({ onUnlockInPlace }: { onUnlockInPlace: () => void }) {
       {authRequired ? (
         <TokenPrompt
           onSubmit={(token) => {
-            setAuthRequired(false);
+            setAuthRefusal(null);
             if (setToken(token)) {
               window.location.reload();
             } else {
@@ -1374,6 +1398,16 @@ function AppSession({ onUnlockInPlace }: { onUnlockInPlace: () => void }) {
             }
           }}
         />
+      ) : null}
+      {authRefusal === "proxy" ? (
+        <div className="write-notice">
+          <div className="write-notice-messages" role="alert">
+            A sign-in proxy in front of Hatchdoor rejected the request.
+          </div>
+          <UiButton onClick={() => window.location.reload()}>
+            Try sign-in again
+          </UiButton>
+        </div>
       ) : null}
       <StartupGate
         status={startup.status}
@@ -1395,7 +1429,7 @@ function AppSession({ onUnlockInPlace }: { onUnlockInPlace: () => void }) {
         {/* After an upgrade (#418), over the workspace only: the gate holds
             its children until discovery has said whether this is a demo,
             which never shows it (the server refuses it there too). */}
-        {!authRequired && !collection.demoMode ? <WhatsNew /> : null}
+        {!authRefusal && !collection.demoMode ? <WhatsNew /> : null}
       </StartupGate>
     </HelpProvider>
   );

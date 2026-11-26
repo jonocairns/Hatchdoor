@@ -7,6 +7,8 @@
 // `withAccessToken` call here to that list (#703).
 
 const TOKEN_KEY = "hatchdoor_web_token";
+const PROXY_RELOAD_KEY = "hatchdoor_proxy_reload";
+const PROXY_RELOAD_WINDOW_MS = 30_000;
 export const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
 
 // The token for this page only, held when the browser refuses to store it.
@@ -48,12 +50,32 @@ export function clearToken(): void {
   }
 }
 
-type UnauthorizedHandler = () => void;
+export type AuthRefusal = "hatchdoor" | "proxy";
+type UnauthorizedHandler = (source: AuthRefusal) => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 
-/** Register a callback fired whenever a request comes back 401. */
+/** Register a callback for a current request refused by Hatchdoor or a proxy. */
 export function onUnauthorized(handler: UnauthorizedHandler | null): void {
   unauthorizedHandler = handler;
+}
+
+/** Reserve one automatic sign-in reload across page loads in this tab. */
+export function reserveProxyReload(): boolean {
+  try {
+    const now = Date.now();
+    const lastReload = sessionStorage.getItem(PROXY_RELOAD_KEY);
+    if (
+      lastReload !== null &&
+      now - Number(lastReload) < PROXY_RELOAD_WINDOW_MS
+    ) {
+      return false;
+    }
+    sessionStorage.setItem(PROXY_RELOAD_KEY, String(now));
+    return true;
+  } catch {
+    // A reload would forget the guard if the browser blocks site storage.
+    return false;
+  }
 }
 
 /** `RequestInit` plus an optional per-call timeout override. Slow-by-nature
@@ -62,9 +84,10 @@ export function onUnauthorized(handler: UnauthorizedHandler | null): void {
 export type ApiFetchInit = RequestInit & { timeoutMs?: number };
 
 /**
- * Fetch wrapper that attaches the bearer token when one is stored and notifies
- * the unauthorized handler on a 401. When no token is stored the call is
- * forwarded unchanged so unauthenticated deployments behave exactly as before.
+ * Fetch wrapper that attaches the stored token and reports API auth refusals.
+ * Hatchdoor's API serves its responses directly. An intervening sign-in
+ * redirect becomes an opaque redirect in manual mode, distinct from an
+ * offline or failed fetch (both of which would otherwise throw TypeError).
  */
 export async function apiFetch(
   input: RequestInfo | URL,
@@ -103,13 +126,20 @@ export async function apiFetch(
   try {
     const res = await fetch(input, {
       ...finalInit,
+      redirect: "manual",
       signal: timeoutController.signal,
     });
-    // A 401 for a request sent with a token that has since changed says
-    // nothing about the new one. An Unlock applied in place (#339) would
-    // otherwise be locked again by the answers still in flight from before it.
-    if (res.status === 401 && getToken() === token) {
-      unauthorizedHandler?.();
+    // An Unlock applied in place (#339) must ignore refusals for a token
+    // that has since changed.
+    if (
+      (res.status === 401 || res.type === "opaqueredirect") &&
+      getToken() === token
+    ) {
+      const source =
+        res.headers.get("X-Hatchdoor-Auth") === "required"
+          ? "hatchdoor"
+          : "proxy";
+      unauthorizedHandler?.(source);
     }
     return res;
   } finally {
@@ -119,7 +149,7 @@ export async function apiFetch(
 }
 
 export function notifyUnauthorized(): void {
-  unauthorizedHandler?.();
+  unauthorizedHandler?.("hatchdoor");
 }
 
 /**

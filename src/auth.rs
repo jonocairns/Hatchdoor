@@ -546,10 +546,15 @@ fn percent_decode(input: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+pub(crate) const AUTH_REQUIRED_HEADER: (header::HeaderName, &str) = (
+    header::HeaderName::from_static("x-hatchdoor-auth"),
+    "required",
+);
+
 fn unauthorized() -> Response {
     (
         StatusCode::UNAUTHORIZED,
-        [(header::WWW_AUTHENTICATE, "Bearer")],
+        [(header::WWW_AUTHENTICATE, "Bearer"), AUTH_REQUIRED_HEADER],
         axum::Json(ErrorResponse {
             error: "Unauthorized".to_string(),
         }),

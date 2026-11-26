@@ -1320,7 +1320,10 @@ use to decide whether a caller may see private pages without gating the route. B
 attachment middlewares bind the MCP token from the current runtime snapshot
 instead of retaining a token captured at startup, so disabling MCP at runtime
 immediately revokes that credential; web-token admission is independent of MCP
-state in both.
+state in both. Hatchdoor's authentication 401s carry
+`X-Hatchdoor-Auth: required` so the web app can distinguish them from a
+reverse proxy's 401. The private-manual and MCP handlers use the same marker
+via `AUTH_REQUIRED_HEADER`.
 
 The upload middleware accepts the MCP token only while MCP *and* MCP writes are
 enabled, so a write-mode disable revokes upload capability. With no web token
@@ -4015,8 +4018,11 @@ with `200`, `spa_note_handler` answers the note address
 `SPA_RESERVED_PREFIXES` (`/api/`, `/vault-assets/`, `/docs/`, `/llms.txt`,
 `/cdn-cgi/`, and anything starting `/health`) keep a bare `404`. The
 `/cdn-cgi/` exclusion lets Cloudflare handle its own sign-in return (#798).
-That list mirrors the service worker's `navigateFallbackDenylist` in
-`frontend/vite.config.ts`, and a test in `spa.rs` fails if the two drift.
+That list mirrors the service worker's offline fallback exclusions in
+`frontend/src/sw.ts`, and a test in `spa.rs` fails if the two drift.
+All document navigations go to the network when the worker is installed.
+Only a failed or timed-out navigation outside the reserved paths gets the
+precached shell.
 Outside demo mode all three return the built `index.html` byte for byte. In
 demo mode they write a link preview (#512, ADR-47) in place of its `<title>`:
 `link_preview.rs` builds the tags, the
@@ -4521,6 +4527,7 @@ boundaries are currently documentation-enforced.
 **Paths:**
 
 - `frontend/src/main.tsx`
+- `frontend/src/sw.ts`
 - `frontend/src/App.tsx`
 - `frontend/src/app/AppErrorBoundary.tsx`
 - `frontend/src/app/AppTopbar.tsx`
@@ -4608,6 +4615,11 @@ counts only while its Vault and slug are the ones the address names: a note
 that is loading or failed reads `Hatchdoor`, never the previous note. The
 wording is `src/handlers/link_preview.rs`'s for the page a demo instance
 serves, apart from an unknown address, which the server leaves as `Hatchdoor`.
+`sw.ts` owns document routing, installed assets and the offline fallback.
+Vite's `injectManifest` build supplies the asset list, keeping lazy
+renderer chunks out of the precache. The worker tries the network before
+serving the shell and uses navigation preload when the browser supports it.
+
 `main.tsx` also owns when the app may reload itself for a new service worker
 (#330). Registration stays `autoUpdate`, but the reload runs through
 `onNeedReload`, and both that and every `registration.update()` ask
@@ -4617,9 +4629,9 @@ update check runs on a one-hour interval and when the tab becomes visible
 (not also on `focus`, which fires for the same return), and swallows the
 rejection `update()` gives while offline (#332). `vite.config.ts` keeps
 everything only a Mermaid or PDF.js dynamic import reaches out of the
-install-time precache, found from the bundle graph by `findLazyChunks`, and
-caches those chunks CacheFirst on first use instead; the manifest's splash
-colours are the dark theme's, since the manifest has no light/dark form.
+install-time precache, found from the bundle graph by `findLazyChunks`.
+`sw.ts` caches those chunks on first use. The manifest's splash colours are
+the dark theme's, since the manifest has no light/dark form.
 Both those and `index.html`'s two `theme-color` tags come from `--bg` in
 `base.css` at build time (`readThemeBackgrounds`, `fillThemeColors`, #648),
 and a missing token or placeholder fails the build.
@@ -4765,7 +4777,7 @@ the shell.
 `app/AppTopbar.test.tsx`, `app/vaultSlot.test.tsx`, `useVaultScope.test.ts`,
 `App.scope-reconcile.test.tsx` (#335),
 `vaults/vaultCollection.test.ts`, `useTheme.test.tsx`, storage tests, then full
-frontend checks. Service-worker and PWA changes (`main.tsx`, `vite.config.ts`)
+frontend checks. Service-worker and PWA changes (`main.tsx`, `sw.ts`, `vite.config.ts`)
 also need `pwaPrecache.test.ts` (lazy-chunk precache exclusion and runtime
 caching) and the PWA contracts in `clientAuditContracts.test.ts`, plus a
 production build to confirm the precache manifest. Layout changes to
@@ -4912,9 +4924,13 @@ check each call. Never log or render tokens. When the browser refuses to
 store the web token, `setToken` keeps it in page memory, prefers it over any
 older stored token, and returns `false`; a caller must then apply it without a
 page reload, which would forget it (Unlock remounts the app in place). The
-unauthorized notification fires only for a 401 answering a request sent with
-the token still current, so answers in flight from before an Unlock cannot
-lock the new session (#339).
+auth refusal notification ignores responses to requests whose token has
+since changed, so an in-flight refusal cannot lock the new session (#339).
+A 401 marked `X-Hatchdoor-Auth: required` requests the token prompt. An
+unmarked 401 or opaque API redirect asks the shell for a document reload.
+`App.tsx` uses the editor's reload hold and `reserveProxyReload`, which
+persists a 30-second cooldown in session storage and declines when storage
+is blocked. A declined automatic reload shows a proxy sign-in notice.
 
 **Validation:** API/error tests, affected feature/consumer tests, and typecheck.
 `clientAuditContracts.test.ts` audits UI, PWA, and CSS source contracts; it does

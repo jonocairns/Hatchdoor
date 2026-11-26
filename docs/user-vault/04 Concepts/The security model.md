@@ -25,6 +25,8 @@ The web token guards the browser and the HTTP API: Settings, model setup, and ev
 > [!warning]
 > With a `HOST` that is not a loopback address and no web token, Hatchdoor refuses to start. It generates a token, saves it in `new-web-token.env` in its state folder (`data/state` with the shipped `compose.yaml`), and asks you to add that line to `.env`. The token never appears in the log, so it does not linger in `docker compose logs` or anywhere logs are shipped. You cannot skip this check. [[Install Hatchdoor with Docker Compose]] shows what it looks like.
 
+Hatchdoor marks its authentication refusals with `X-Hatchdoor-Auth: required`. The browser uses that header to recognise a request for the web token. A reverse proxy can require a separate sign-in before it forwards any request to Hatchdoor.
+
 ### Running without a web token
 
 On a loopback address (`HOST=127.0.0.1`, the default outside Docker) the web token is optional. Without one, the browser and `curl` on the same computer reach everything with no password. A web page you visit in that browser must not, so Hatchdoor checks two headers on every request instead:

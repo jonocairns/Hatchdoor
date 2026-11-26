@@ -3,7 +3,7 @@ import { useState } from "react";
 import { HELP_PAGES, useHelp } from "../features/help";
 import { UiButton } from "./ui";
 
-/** Shown when the API returns 401, prompting for the web bearer token. */
+/** Prompts for the web bearer token when Hatchdoor refuses it. */
 export function TokenPrompt({
   onSubmit,
 }: {

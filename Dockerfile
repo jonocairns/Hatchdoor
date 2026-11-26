@@ -57,10 +57,8 @@ FROM chef AS verification
 COPY --chown=builder:builder Cargo.toml Cargo.lock ./
 COPY --chown=builder:builder src ./src
 COPY --chown=builder:builder docs/user-vault ./docs/user-vault
-# The auth regression test checks every query-token URL in the frontend source.
+# The auth test reads query-token URLs and the SPA test reads the worker denylist.
 COPY --chown=builder:builder frontend/src ./frontend/src
-# The SPA regression test compares reserved routes with the real worker denylist.
-COPY --chown=builder:builder frontend/vite.config.ts ./frontend/vite.config.ts
 # The link-preview test checks the real picture's dimensions and file size.
 COPY --chown=builder:builder frontend/public/link-preview.png ./frontend/public/link-preview.png
 ARG GIT_SHA=""

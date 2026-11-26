@@ -6,6 +6,7 @@ import {
   DEFAULT_FETCH_TIMEOUT_MS,
   getToken,
   onUnauthorized,
+  reserveProxyReload,
   setToken,
   withAccessToken,
 } from "./api";
@@ -13,6 +14,7 @@ import {
 afterEach(() => {
   clearToken();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -172,35 +174,102 @@ describe("web token with site data blocked (#339)", () => {
 describe("unauthorized notifications", () => {
   afterEach(() => onUnauthorized(null));
 
-  it("ignores a 401 answering a request sent before the token changed", async () => {
+  it.each(["hatchdoor", "proxy"])(
+    "ignores a %s 401 after the token changes",
+    async (source) => {
+      const handler = vi.fn();
+      onUnauthorized(handler);
+      let answer: (response: Response) => void = () => {};
+      vi.spyOn(globalThis, "fetch").mockReturnValue(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+
+      const request = apiFetch("/api/v1/vaults");
+      setToken("secret-token");
+      answer(
+        new Response(null, {
+          status: 401,
+          headers:
+            source === "hatchdoor"
+              ? { "X-Hatchdoor-Auth": "required" }
+              : undefined,
+        }),
+      );
+      await request;
+
+      expect(handler).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["hatchdoor", { "X-Hatchdoor-Auth": "required" }],
+    [
+      "proxy",
+      { "WWW-Authenticate": 'Bearer realm="OAuth", error="invalid_token"' },
+    ],
+    ["proxy", {}],
+  ] as const)(
+    "reports a %s 401 for the current token",
+    async (source, headers) => {
+      const handler = vi.fn();
+      onUnauthorized(handler);
+      setToken("wrong-token");
+      const response = new Response(null, { status: 401, headers });
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
+
+      expect(await apiFetch("/api/v1/vaults")).toBe(response);
+      expect(handler).toHaveBeenCalledExactlyOnceWith(source);
+    },
+  );
+
+  it("reports a sign-in redirect without following it or replaying the request", async () => {
     const handler = vi.fn();
     onUnauthorized(handler);
-    let answer: (response: Response) => void = () => {};
-    vi.spyOn(globalThis, "fetch").mockReturnValue(
-      new Promise((resolve) => {
-        answer = resolve;
-      }),
+    const redirect = new Response();
+    Object.defineProperty(redirect, "type", { value: "opaqueredirect" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(redirect);
+
+    expect(await apiFetch("/api/v1/vaults", { method: "POST" })).toBe(redirect);
+    expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+      "/api/v1/vaults",
+      expect.objectContaining({ method: "POST", redirect: "manual" }),
     );
-
-    const request = apiFetch("/api/v1/vaults");
-    setToken("secret-token");
-    answer(new Response("", { status: 401 }));
-    await request;
-
-    expect(handler).not.toHaveBeenCalled();
+    expect(handler).toHaveBeenCalledExactlyOnceWith("proxy");
   });
 
-  it("reports a 401 for the token currently in use", async () => {
+  it("leaves network errors and proxy outages to the caller", async () => {
     const handler = vi.fn();
     onUnauthorized(handler);
-    setToken("wrong-token");
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("", { status: 401 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response(null, { status: 502 }));
 
-    await apiFetch("/api/v1/vaults");
+    await expect(apiFetch("/api/v1/vaults")).rejects.toThrow(TypeError);
+    expect((await apiFetch("/api/v1/vaults")).status).toBe(502);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
 
-    expect(handler).toHaveBeenCalledOnce();
+describe("proxy sign-in reload guard", () => {
+  it("allows one reload every 30 seconds per tab", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(60_000);
+    expect(reserveProxyReload()).toBe(true);
+    vi.setSystemTime(89_999);
+    expect(reserveProxyReload()).toBe(false);
+    vi.setSystemTime(90_000);
+    expect(reserveProxyReload()).toBe(true);
+  });
+
+  it("declines to reload if the browser refuses to persist the guard", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Quota exceeded", "QuotaExceededError");
+    });
+    expect(reserveProxyReload()).toBe(false);
   });
 });
 

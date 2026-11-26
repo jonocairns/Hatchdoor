@@ -17,11 +17,8 @@ pub fn validate_mcp_request(headers: &HeaderMap, config: &McpConfig) -> Result<(
     }
 
     if config.bearer_token.is_none() {
-        return Err(Box::new(jsonrpc_error_response(
-            StatusCode::UNAUTHORIZED,
-            Value::Null,
-            -32001,
-            "MCP requires HATCHDOOR_MCP_BEARER_TOKEN".to_string(),
+        return Err(Box::new(unauthorized(
+            "MCP requires HATCHDOOR_MCP_BEARER_TOKEN",
         )));
     }
 
@@ -41,16 +38,26 @@ pub fn validate_mcp_request(headers: &HeaderMap, config: &McpConfig) -> Result<(
             crate::auth::constant_time_eq(presented.as_bytes(), expected_token.as_bytes())
         });
         if !authorized {
-            return Err(Box::new(jsonrpc_error_response(
-                StatusCode::UNAUTHORIZED,
-                Value::Null,
-                -32001,
-                "Missing or invalid MCP bearer token".to_string(),
+            return Err(Box::new(unauthorized(
+                "Missing or invalid MCP bearer token",
             )));
         }
     }
 
     Ok(())
+}
+
+fn unauthorized(message: &str) -> Response {
+    (
+        [crate::auth::AUTH_REQUIRED_HEADER],
+        jsonrpc_error_response(
+            StatusCode::UNAUTHORIZED,
+            Value::Null,
+            -32001,
+            message.to_string(),
+        ),
+    )
+        .into_response()
 }
 
 /// Rejects a request whose declared protocol revision is retired/unknown.
@@ -125,6 +132,7 @@ mod tests {
         let result = validate_mcp_request(&HeaderMap::new(), &config);
         let response = *result.expect_err("read-only MCP without a token must be rejected");
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.headers()["x-hatchdoor-auth"], "required");
     }
 
     #[test]

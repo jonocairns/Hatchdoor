@@ -146,6 +146,9 @@ export default defineConfig({
     themeColorsFromTokens(),
     VitePWA({
       registerType: "autoUpdate",
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       manifest: {
         name: "Hatchdoor",
         short_name: "Hatchdoor",
@@ -178,7 +181,7 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
         // PDF.js is loaded only for an embedded PDF. Keeping its renderer and
         // worker out of the install-time precache preserves that lazy boundary.
@@ -192,40 +195,6 @@ export default defineConfig({
             manifest: entries.filter((entry) => !lazyChunks.has(entry.url)),
             warnings: [],
           }),
-        ],
-        // Out of the precache, those chunks are fetched the first time a note
-        // needs them and kept from then on, so a Mermaid note that rendered
-        // once still renders offline. Their names carry a content hash, so a
-        // cached copy is never stale.
-        runtimeCaching: [
-          {
-            urlPattern: ({ sameOrigin, url }) =>
-              sameOrigin &&
-              url.pathname.startsWith("/assets/") &&
-              /\.m?js$/.test(url.pathname),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "hatchdoor-lazy-chunks",
-              expiration: {
-                maxEntries: 300,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-                purgeOnQuotaError: true,
-              },
-            },
-          },
-        ],
-        // Keep the SPA navigation fallback from swallowing server routes. On
-        // iOS standalone PWAs the `download` attribute is ignored and the
-        // anchor click becomes a navigation; without this denylist the service
-        // worker serves the cached index.html, so a `.md` download arrives as
-        // an HTML file. Let these requests reach the network instead.
-        navigateFallbackDenylist: [
-          /^\/api\//,
-          /^\/vault-assets\//,
-          /^\/health/,
-          /^\/docs\//,
-          /^\/llms\.txt/,
-          /^\/cdn-cgi\//,
         ],
       },
     }),

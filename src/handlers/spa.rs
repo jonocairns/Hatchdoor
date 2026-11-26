@@ -12,9 +12,8 @@ use crate::vault_read::VaultReads;
 const INDEX_PATH: &str = "frontend/dist/index.html";
 
 /// Path prefixes that are never answered with the app, matched with
-/// `starts_with`. They mirror the service worker's `navigateFallbackDenylist`
-/// in `frontend/vite.config.ts`, so an address answers the same way whether a
-/// returning visitor's worker serves it or a cold load reaches the server.
+/// `starts_with`. They mirror the service worker's offline fallback
+/// denylist: none of these addresses should get the SPA shell.
 const SPA_RESERVED_PREFIXES: [&str; 6] = [
     "/api/",
     "/vault-assets/",
@@ -216,14 +215,10 @@ mod tests {
 
     #[test]
     fn reserved_prefixes_match_the_service_worker_denylist() {
-        // The service worker serves its cached index for every navigation it
-        // does not deny. If these prefixes drifted from that list, the same
-        // address would answer differently for a returning visitor and a cold
-        // load again.
-        let config = std::fs::read_to_string("frontend/vite.config.ts").expect("vite config");
-        let start = config
-            .find("navigateFallbackDenylist: [")
-            .expect("denylist present");
+        // A reserved route still needs its own response when the network
+        // fails. It should never get the cached shell as a substitute.
+        let config = std::fs::read_to_string("frontend/src/sw.ts").expect("service worker");
+        let start = config.find("denylist: [").expect("denylist present");
         let end = start + config[start..].find("],").expect("denylist end");
         let mut denylist: Vec<String> = config[start..end]
             .lines()

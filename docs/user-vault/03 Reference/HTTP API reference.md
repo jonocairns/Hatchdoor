@@ -35,6 +35,8 @@ All request and response bodies are JSON unless noted. Errors from the `/api/v1/
 
 The web bearer token is sent as `Authorization: Bearer <token>`. The word `Bearer` may be in any case. Three `GET` routes also take it as an `access_token` query parameter, for the browser's images, downloads and live updates, which cannot send a header: `/api/v1/vaults/{vault_id}/assets/{*path}`, `/api/v1/vaults/{vault_id}/notes/{slug}/download` and `/api/v1/vaults/events`. Every other route answers `401` to a token in the query.
 
+Hatchdoor includes `X-Hatchdoor-Auth: required` on its authentication `401` responses, including the private manual and `/mcp`. A reverse proxy may issue its own `401` before the request reaches Hatchdoor. Forward this response header so the web app can tell the two apart.
+
 With no web token configured (and not in demo mode), every route except `/mcp` answers `403` when the `Host` header is not `localhost`, `127.0.0.1` or `[::1]` (any port) or the host of `HATCHDOOR_PUBLIC_URL`, and when a request other than `GET`, `HEAD` or `OPTIONS` comes from another website: an `Origin` that is not the request's own, the public address's or one on `HATCHDOOR_MCP_ALLOWED_ORIGINS`, or no `Origin` and `Sec-Fetch-Site: cross-site`. See [[The security model#Running without a web token]].
 
 Every response, on every route including `/mcp`, carries `X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'`, so no page can show Hatchdoor in a frame. A response with a policy of its own, such as an SVG asset's `sandbox`, keeps it with `frame-ancestors 'none'` added: `sandbox; frame-ancestors 'none'`.
@@ -72,7 +74,7 @@ A page marked `private: true` in its frontmatter answers `/docs/<page>.md` only 
 | GET | `/`, `/stats`, `/graph`, `/settings`, `/v/{vault_id}/n/{slug}` | The browser app, `200`. |
 | GET | any other path, outside `/api/`, `/vault-assets/`, `/docs/`, `/llms.txt`, `/cdn-cgi/` and paths starting `/health` | The browser app with a `404` status, when no built file matches. The app shows a not-found page with a way back to your notes. |
 
-Paths under `/api/`, `/vault-assets/`, `/docs/` and `/cdn-cgi/`, plus `/llms.txt` and any path starting `/health`, never get the app. An unknown one there is a plain `404`, so a script calling a mistyped API path gets an error, not a page of HTML. The service worker lets `/cdn-cgi/` navigations reach the network so Cloudflare can handle its own endpoints, including the Access sign-in return.
+Paths under `/api/`, `/vault-assets/`, `/docs/` and `/cdn-cgi/`, plus `/llms.txt` and any path starting `/health`, never get the app. An unknown one there is a plain `404`, so a script calling a mistyped API path gets an error, not a page of HTML. The service worker sends document navigations to the network, including proxy sign-in and return. If the network fails or times out, it can serve the installed app shell outside these reserved paths.
 
 The page is sent before any token is checked. Outside demo mode it is the same file for every address, so it names no note and no Vault.
 

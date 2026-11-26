@@ -80,8 +80,9 @@ describe("service-worker precache wiring", () => {
     expect(viteConfig).toMatch(
       /manifestTransforms:[\s\S]*!lazyChunks\.has\(entry\.url\)/,
     );
-    expect(viteConfig).toMatch(
-      /cacheName:\s*"hatchdoor-lazy-chunks"[\s\S]*handler|handler:\s*"CacheFirst"[\s\S]*cacheName:\s*"hatchdoor-lazy-chunks"/,
+    const { default: worker } = await import("./sw.ts?raw");
+    expect(worker).toMatch(
+      /new CacheFirst\([\s\S]*cacheName:\s*"hatchdoor-lazy-chunks"/,
     );
   });
 });

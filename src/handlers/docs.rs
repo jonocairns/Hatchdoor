@@ -111,6 +111,7 @@ fn page_response(manual: &Manual, path: &str, reveals_private: bool) -> Response
             StatusCode::UNAUTHORIZED,
             [
                 (header::WWW_AUTHENTICATE, "Bearer"),
+                crate::auth::AUTH_REQUIRED_HEADER,
                 (header::CONTENT_TYPE, PLAIN_TEXT),
             ],
             "This page of the manual needs the web token.\n",
@@ -526,8 +527,9 @@ mod tests {
     #[tokio::test]
     async fn a_private_page_needs_the_web_token() {
         let app = fixture(Some(TOKEN));
-        let (status, body, _) = get_text(&app, "/docs/guides/secret.md", None).await;
+        let (status, body, response) = get_text(&app, "/docs/guides/secret.md", None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(response.headers()["x-hatchdoor-auth"], "required");
         assert!(!body.contains("9.9.9"));
         let (status, _, _) = get_text(&app, "/docs/guides/secret.md", Some("wrong")).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);

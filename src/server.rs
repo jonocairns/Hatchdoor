@@ -2956,6 +2956,12 @@ mod tests {
                 .await
                 .expect("response");
             assert_eq!(response.status(), expected, "{header:?}");
+            if expected == StatusCode::UNAUTHORIZED {
+                assert_eq!(response.headers()["x-hatchdoor-auth"], "required");
+                assert_eq!(response.headers()[header::WWW_AUTHENTICATE], "Bearer");
+            } else {
+                assert!(!response.headers().contains_key("x-hatchdoor-auth"));
+            }
         }
     }
 

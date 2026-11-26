@@ -9,6 +9,7 @@ Find what you are seeing in the list below and jump to its section. Each section
 - Hatchdoor stops right after starting, or the container keeps restarting: [[#Hatchdoor won't start]]
 - The browser says "Vaults Unavailable": [[#The workspace says "Vaults Unavailable"]]
 - The browser asks for a token or password, and you don't know it: [[#The browser asks for a token you don't have]]
+- The browser says a proxy rejected the request: [[#A sign-in proxy rejected the request]]
 - Your agent cannot connect, or gets "not found", "unauthorized" or "forbidden": [[#An agent can't connect over MCP]]
 - Your agent cannot download or upload a file: [[#An agent can't download or upload a file]]
 - The search model will not download: [[#Model download is stuck or failed]]
@@ -48,6 +49,10 @@ The browser asks for the web token, the password that protects Hatchdoor in the 
 
 Don't confuse it with the MCP password, which only agents use. The web token signs in a browser; the MCP password connects an agent.
 
+## A sign-in proxy rejected the request
+
+The browser tried to reach Hatchdoor, and the sign-in proxy in front of it refused the request or redirected it to sign-in. Hatchdoor can reload the page once to let the proxy open its sign-in page. If you see this message, choose **Try sign-in again** when you are ready to leave the page. If the message returns after signing in, ask the operator to check the proxy's session and that it forwards Hatchdoor's `X-Hatchdoor-Auth` response header.
+
 ## An agent can't connect over MCP
 
 First check that agent access is on in **Settings** → **Agent access (MCP)**, and that the agent uses the MCP password from there, not the web token. If it still fails, the error the agent reports tells you which of these it is:
@@ -55,7 +60,7 @@ First check that agent access is on in **Settings** → **Agent access (MCP)**, 
 - **`404 Not Found` on `/mcp`, with an empty body**: MCP is disabled. Turn on **Let assistants connect (MCP)** in **Settings** → **Agent access (MCP)**. Read the body before acting on a `404`: an empty body means this, and a body with text means the next entry.
 - **`404 Not Found` whose body reads `Not Found: Session not found`**: MCP is on and the client got in, but the session it is quoting doesn't exist. Either it was never issued, or it was issued before Hatchdoor last restarted. The remedy belongs to the client: it has to run `initialize` again and use the session that comes back.
 - **`400 Bad Request`, "Bad Request: Session ID is required"**: the client sent an ordinary call with no session. The remedy is the one above: run `initialize` again.
-- **`401`, JSON-RPC error `-32001`, "Missing or invalid MCP bearer token"**: the client's `Authorization: Bearer <token>` header doesn't match the current MCP password. Generate a new one or copy it again from Settings. The client and Settings must hold the same value.
+- **`401` with `X-Hatchdoor-Auth: required`, JSON-RPC error `-32001`, "Missing or invalid MCP bearer token"**: the client's `Authorization: Bearer <token>` header doesn't match the current MCP password. Generate a new one or copy it again from Settings. The client and Settings must hold the same value.
 - **A write tool (`create_note`, `edit_vault`, etc.) returns "MCP write tools are disabled by HATCHDOOR_MCP_WRITE_ENABLED"**: MCP is connected and reading fine, but **Let assistants change notes** is off. That switch is separate from the one that lets an agent connect. [[Search and change notes with your agent]] explains why.
 
 Two more are less common. **`403 Forbidden`, "Forbidden MCP origin"**: the request carried an `Origin` header that is not on the allow-list (`HATCHDOOR_MCP_ALLOWED_ORIGINS`). This normally affects a browser-based MCP client and not a command-line agent. **`429 Too Many Requests` on `initialize`**: the MCP password already holds 32 open sessions, or opened 60 in the last minute. Something is reconnecting in a loop, or many agents share the password. Sessions free up as their agents close them or go quiet for five minutes; the `Retry-After` header says when to try again.

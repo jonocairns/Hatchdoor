@@ -16,12 +16,12 @@ permission-sensitive tests. It runs the default-feature suite, just like the
 same Cargo command outside Docker; feature-gated model/evaluation tests are not
 implicitly enabled. Production builds do not depend on this target. Callers
 that require tests before publication must run it first and propagate failure.
-The suite needs four things beyond the Rust sources and `docs/user-vault`: the
+The suite needs three things beyond the Rust sources and `docs/user-vault`: the
 `git` program, which `chef` installs; `frontend/src`, which the auth test
 `every_frontend_query_token_url_is_on_an_allowed_route` scans
 to check every frontend query-token URL against the server's route allowlist and
 which also holds the shared `noteComments.cases.json` cases for the link-preview
-test; `frontend/vite.config.ts`, which the SPA test compares with the backend's
+test and the `sw.ts` offline fallbacks the SPA test compares with the backend's
 reserved prefixes; and `frontend/public/link-preview.png`, which the link-preview
 test reads to check the actual image's dimensions and size. These inputs cover
 every file the tests read outside Rust `src/` and `docs/user-vault`. A new test

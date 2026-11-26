@@ -177,9 +177,10 @@ Copy this for a new record:
 
 - **Status:** Accepted; amended in #703: the query token works on three GET routes only.
 - **Context:** When set, a bearer token must protect `/api/*`, `/vault-assets/*`, and downloads. But images, SSE streams, and download links can't carry an `Authorization` header from the browser.
-- **Decision:** Accept the token via `Authorization: Bearer` or, where headers can't be set, an `access_token` query parameter. Compare tokens in constant time; redact them from logs. The PWA prompts for the token on a 401 and stores it locally.
+- **Decision:** Accept the token via `Authorization: Bearer` or, where headers can't be set, an `access_token` query parameter. Compare tokens in constant time; redact them from logs. The PWA prompts for the token when Hatchdoor refuses it and stores it locally.
 - **Consequences:** Works with header-less browser contexts; the query-param path is a deliberate, documented tradeoff (tokens can appear in URLs/proxy logs).
 - **Amendment (#703):** The query form is accepted on `GET` requests to three routes only, the ones the browser builds such URLs for: `/api/v1/vaults/{vault_id}/assets/{*path}` (`<img>`, PDF previews, file downloads), `/api/v1/vaults/{vault_id}/notes/{slug}/download` (note download) and `/api/v1/vaults/events` (`EventSource`). Every other route, every write, the token-reveal routes and the manual's private pages included, takes the header alone and answers `401` to a query-only token. A leaked URL can then fetch a file or follow the event stream, but cannot write or reveal a token. The list is `QUERY_TOKEN_ROUTES` in `auth.rs`; a test holds every frontend `withAccessToken` call to it. Transfer links (ADR-27) and MCP auth are unaffected.
+- **Proxy sign-in amendment:** Hatchdoor marks its own authentication 401s with `X-Hatchdoor-Auth: required`. Only a marked API refusal prompts for the web token. An unmarked API 401 or opaque redirect can trigger a guarded document reload for proxy sign-in. The service worker gives the network the first chance to answer navigations and keeps a precached shell for failed loads outside the reserved paths.
 - **Evidence:** `config.rs` (`web_bearer_token`); `auth.rs` (`constant_time_eq`, redaction, `QUERY_TOKEN_ROUTES`); CHANGELOG F-01, F-06, #703.
 
 ## ADR-09 — MCP off by default, own token, Origin allowlist

@@ -598,10 +598,13 @@ function mutableServer(initial: VaultSummary[]) {
         server.discoveryReads += 1;
         if (server.discoveryStatus !== 200) {
           return Promise.resolve(
-            jsonResponse(
-              { code: "unauthorized", message: "no", retryable: false },
-              server.discoveryStatus,
-            ),
+            new Response(null, {
+              status: server.discoveryStatus,
+              headers:
+                server.discoveryStatus === 401
+                  ? { "X-Hatchdoor-Auth": "required" }
+                  : undefined,
+            }),
           );
         }
         return Promise.resolve(
@@ -721,7 +724,7 @@ describe("the Vault collection client's stream recovery (#646)", () => {
       await vi.advanceTimersByTimeAsync(1_000);
     });
 
-    expect(unauthorized).toHaveBeenCalled();
+    expect(unauthorized).toHaveBeenCalledWith("hatchdoor");
     // And it keeps trying, so a token fixed in place is picked up.
     setToken("fixed-in-place");
     act(() => giveUp());

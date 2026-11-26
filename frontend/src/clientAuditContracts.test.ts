@@ -17,6 +17,7 @@ import topbarCss from "./styles/topbar.css?raw";
 import uiCss from "./styles/ui-common.css?raw";
 import indexHtml from "../index.html?raw";
 import viteConfig from "../vite.config.ts?raw";
+import workerSource from "./sw.ts?raw";
 
 describe("client audit launch contracts", () => {
   it("opts the installed PWA into safe-area viewport insets", () => {
@@ -93,10 +94,10 @@ describe("client audit launch contracts", () => {
   });
 
   it("does not runtime-cache authenticated API data in the service worker", () => {
-    expect(viteConfig).not.toContain("hatchdoor-api-tree");
-    expect(viteConfig).not.toContain("hatchdoor-api-note");
-    expect(viteConfig).not.toContain("/api/tree");
-    expect(viteConfig).not.toContain("api\\/note");
+    expect(workerSource).not.toContain("hatchdoor-api-tree");
+    expect(workerSource).not.toContain("hatchdoor-api-note");
+    expect(workerSource).not.toContain("/api/tree");
+    expect(workerSource).not.toContain("api\\/note");
   });
 
   it("does not ship runtime .at() calls below the configured Safari floor", () => {
