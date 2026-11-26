@@ -1402,7 +1402,7 @@ function AppSession({ onUnlockInPlace }: { onUnlockInPlace: () => void }) {
       {authRefusal === "proxy" ? (
         <div className="write-notice">
           <div className="write-notice-messages" role="alert">
-            A sign-in proxy in front of Hatchdoor rejected the request.
+            Sign-in may be required.
           </div>
           <UiButton onClick={() => window.location.reload()}>
             Try sign-in again

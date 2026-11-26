@@ -9,7 +9,7 @@ Find what you are seeing in the list below and jump to its section. Each section
 - Hatchdoor stops right after starting, or the container keeps restarting: [[#Hatchdoor won't start]]
 - The browser says "Vaults Unavailable": [[#The workspace says "Vaults Unavailable"]]
 - The browser asks for a token or password, and you don't know it: [[#The browser asks for a token you don't have]]
-- The browser says a proxy rejected the request: [[#A sign-in proxy rejected the request]]
+- The browser says “Sign-in may be required”: [[#Sign-in may be required]]
 - Your agent cannot connect, or gets "not found", "unauthorized" or "forbidden": [[#An agent can't connect over MCP]]
 - Your agent cannot download or upload a file: [[#An agent can't download or upload a file]]
 - The search model will not download: [[#Model download is stuck or failed]]
@@ -49,9 +49,9 @@ The browser asks for the web token, the password that protects Hatchdoor in the 
 
 Don't confuse it with the MCP password, which only agents use. The web token signs in a browser; the MCP password connects an agent.
 
-## A sign-in proxy rejected the request
+## Sign-in may be required
 
-The browser tried to reach Hatchdoor, and the sign-in proxy in front of it refused the request or redirected it to sign-in. Hatchdoor can reload the page once to let the proxy open its sign-in page. If you see this message, choose **Try sign-in again** when you are ready to leave the page. If the message returns after signing in, ask the operator to check the proxy's session and that it forwards Hatchdoor's `X-Hatchdoor-Auth` response header.
+Hatchdoor received a redirect or an authentication refusal it could not identify as its own. If there is a sign-in proxy in front of Hatchdoor, reloading lets the proxy open its sign-in page. If you see this message, choose **Try sign-in again** when you are ready to leave the page. If the message returns after signing in, ask the operator to check the proxy's session and that it forwards Hatchdoor's `X-Hatchdoor-Auth` response header.
 
 ## An agent can't connect over MCP
 

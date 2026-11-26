@@ -327,7 +327,7 @@ describe("boot with site data blocked (#339)", () => {
 });
 
 describe("proxy sign-in", () => {
-  it("shows the proxy refusal instead of the token prompt after an attempted reload", async () => {
+  it("shows a sign-in notice after an attempted reload", async () => {
     mockServer({ proxyRefuses: true });
     expect(reserveProxyReload()).toBe(true);
     try {
@@ -337,9 +337,7 @@ describe("proxy sign-in", () => {
         </MemoryRouter>,
       );
 
-      expect(
-        await screen.findByText(/sign-in proxy .* rejected the request/),
-      ).toBeVisible();
+      expect(await screen.findByText("Sign-in may be required.")).toBeVisible();
       expect(
         screen.queryByRole("dialog", { name: "Access token required" }),
       ).not.toBeInTheDocument();
